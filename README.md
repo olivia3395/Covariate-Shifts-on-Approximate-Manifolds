@@ -5,7 +5,7 @@
 This repository contains simulation code for our study of **covariate shift under approximate manifold structure**, where we explore the **minimax phase transitions** in nonparametric regression across varying geometric and distributional configurations of source and target domains.
 
 
-## 🗂 Repository Contents
+## Repository Contents
 
 | File                    | Description                                                                                                                                                               |
 | ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -23,14 +23,14 @@ We consider three simulation regimes to investigate the impact of geometry and a
 
 
 
-### 🔹 1. Same-Dimension Setting
+### 1. Same-Dimension Setting
 
 * **Distribution**: Both source and target samples are drawn independently from the same ambient space \$\mathbb{R}^D\$.
 * **Structure**: No manifold or low-dimensional structure is assumed or exploited.
 
 
 
-### 🔹 2. Manifold Setting (Oracle)
+### 2. Manifold Setting (Oracle)
 
 * **Distribution**: The **target distribution** lies on a smooth low-dimensional manifold \$\mathcal{M} \subset \mathbb{R}^D\$, generated via a mapping \$\phi(z)\$ where \$z \in \mathbb{R}^d\$.
 * **Source samples**: Drawn from the full ambient space \$\mathbb{R}^D\$, potentially off-manifold.
@@ -39,7 +39,7 @@ We consider three simulation regimes to investigate the impact of geometry and a
 
 
 
-### 🔹 3. Adaptive Manifold Setting (Unknown \$d\$ and \$\beta\$)
+### 3. Adaptive Manifold Setting (Unknown \$d\$ and \$\beta\$)
 
 * **Distribution**: Same as in the manifold setting, where the target lies on a smooth manifold and the source in the ambient space.
 * **Challenge**: The intrinsic dimension \$d\$ and smoothness \$\beta\$ are **unknown and must be estimated** from the data.
