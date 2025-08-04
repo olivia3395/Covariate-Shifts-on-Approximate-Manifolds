@@ -13,7 +13,6 @@ This repository contains simulation code for our study of **covariate shift unde
 | `SAME_DIM.R` | Simulates the **same-dimension baseline** where both source and target are in \$\mathbb{R}^D\$.                                                                           |
 | `MANIFOLD.R` | Simulates the **manifold setting**, where the **target** lies on a low-dimensional manifold embedded in \$\mathbb{R}^D\$, while the **source** lies in the ambient space. |
 | `ADAPTIVE_PARALLEL.R` | Runs **adaptive Lepskii-type procedures** to estimate smoothness \$\beta\$ and intrinsic dimension \$d\$ from target samples.                                             |
-
 | `figures/`              | Directory for storing all generated simulation plots.                                                                                                                     |
 
 
