@@ -16,7 +16,7 @@
 
 <br/>
 
-[📄 Read the Paper](https://arxiv.org/abs/2507.00889) · [📂 Repository Structure](#-repository-structure)
+[📄 Read the Paper](https://arxiv.org/abs/2507.00889) 
 
 <br/>
 
