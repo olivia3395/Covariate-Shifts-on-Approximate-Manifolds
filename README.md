@@ -16,7 +16,7 @@
 
 <br/>
 
-[📄 Read the Paper](https://arxiv.org/abs/2507.00889) · [📊 View Figures](#-key-results--figures) · [🚀 Quick Start](#-quick-start) · [📂 Repository Structure](#-repository-structure)
+[📄 Read the Paper](https://arxiv.org/abs/2507.00889) · [📂 Repository Structure](#-repository-structure)
 
 <br/>
 
@@ -66,7 +66,7 @@ The minimax rate of estimation transitions at the critical threshold $\kappa_n^*
 
 
 
-## 📊 Key Results & Figures
+## 📊 Key Results 
 
 ### Experiment 1 — Same Dimension Setting ($d = D = 5$)
 
