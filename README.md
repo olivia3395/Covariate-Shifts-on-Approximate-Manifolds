@@ -7,8 +7,7 @@
 
 <br/><br/>
 
-# Phase Transition in Nonparametric Minimax Rates
-### for Covariate Shifts on Approximate Manifolds
+# Phase Transition in Nonparametric Minimax Rates for Covariate Shifts on Approximate Manifolds
 
 <br/>
 
