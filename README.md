@@ -213,27 +213,20 @@ source("Loglog.R")
 
 
 
-## 📐 Methodology
+## Methodology
 
 ### Local Polynomial Regression Estimator
 
 The estimator solves a weighted least-squares problem at the test point $x^*$:
 
-$$\hat{\theta} = \underset{\theta}{\arg\min} \sum_{i=1}^{n} \left(Y_i - \theta^\top z\!\left(\tfrac{X_i - x^*}{h_n}\right)\right)^2 K\!\left(\tfrac{X_i - x^*}{h_n}\right)$$
-
-with final estimate $\hat{f}(x^*) = e_1^\top (Z^\top W Z)^{-1} (Z^\top W Y)$.
 
 ### Optimal Bandwidth
-
-$$h_n = \begin{cases} C\bigl(n_P + n_Q \rho_n^{d-D}\bigr)^{-\frac{1}{2\beta+D}} & \text{if } \rho_n \geq C_1 \kappa_n^* \\[6pt] C\bigl(n_P^{\frac{2\beta+d}{2\beta+D}} + n_Q\bigr)^{-\frac{1}{2\beta+d}} & \text{if } \rho_n \leq C_2 \kappa_n^* \end{cases}$$
 
 ### Adaptive Procedure (Algorithm 1)
 
 1. **Estimate $d$** using $k$-nearest neighbor distances:
-$$\hat{d}(X_i) = \left\lfloor \frac{\log 2}{\log\bigl(r^{(k)}(X_i) / r^{(\lceil k/2 \rceil)}(X_i)\bigr)} \right\rceil$$
 
 2. **Estimate $\beta$** using Lepskii's method over a discrete grid $\mathcal{B}$:
-$$\hat{\beta} = \max\!\left\{\tilde{\beta} \in \mathcal{B} : \bigl|\hat{f}_{h_{n,\tilde{\beta}}}(x^*) - \hat{f}_{h_{n,\eta}}(x^*)\bigr| \leq C_\ell h_{n,\eta}^{\eta}, \; \forall\, \eta \leq \tilde{\beta}\right\}$$
 
 <br/>
 
