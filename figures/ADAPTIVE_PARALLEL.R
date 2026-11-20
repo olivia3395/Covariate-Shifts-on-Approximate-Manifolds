@@ -16,7 +16,7 @@ library(parallel)
 
 
 rm(list = ls())
-setwd("/Users/yuyao/Desktop/JASA-CODE")
+# Run from the repository root (the directory containing functions.R)
 
 # Load estimator function
 source("functions.R") 
@@ -123,20 +123,24 @@ calculate_mse_fixed_nP_lepski_oracle_split <- function(
       C_combined <- 0.1
       best_beta_c <- NULL
       
-      for (beta in beta_candidates) {
-        # h_beta <- (n_t + n_s^((2 * beta + d) / (2 * beta + D)))^(-1 / (2 * beta + d))
-        h_beta <-  1.2*((n_t + n_s^((2 * beta + d) / (2 * beta + D)))/log(n_eff))^(-1 / (2 * beta + d))
+      # Bandwidth and penalized LPR estimate for every candidate smoothness level.
+      # The ridge parameter lambda_h = 1 + M_h * h^(2 * beta) uses the candidate beta.
+      h_candidates <- 1.2 * ((n_t + n_s^((2 * beta_candidates + d) / (2 * beta_candidates + D))) / log(n_eff))^(-1 / (2 * beta_candidates + d))
+      f_candidates <- sapply(seq_along(beta_candidates), function(k) {
+        local_polynomial_estimator(x_combined, y_combined, x0_interior, degree,
+                                   h_candidates[k], kernel_type, beta = beta_candidates[k])
+      })
+      
+      for (b_idx in seq_along(beta_candidates)) {
+        beta <- beta_candidates[b_idx]
         stable <- TRUE
-        for (eta in beta_candidates) {
-          if (eta <= beta) {
-            ## h_eta <- (n_t + n_s^((2 * eta + d) / (2 * eta + D)))^(-1 / (2 * eta + d))
-            h_eta <- 1.2*((n_t + n_s^((2 * eta + d) / (2 * eta + D)))/log(n_eff))^(-1 / (2 * eta + d))
-            diff <- abs(local_polynomial_estimator(x_combined, y_combined, x0_interior, degree, h_beta, kernel_type) -
-                          local_polynomial_estimator(x_combined, y_combined, x0_interior, degree, h_eta, kernel_type))
-            if (diff > C_combined * h_eta^eta) {
-              stable <- FALSE
-              break
-            }
+        for (e_idx in seq_len(b_idx)) {
+          eta <- beta_candidates[e_idx]
+          h_eta <- h_candidates[e_idx]
+          diff <- abs(f_candidates[b_idx] - f_candidates[e_idx])
+          if (diff > C_combined * h_eta^eta) {
+            stable <- FALSE
+            break
           }
         }
         if (stable) best_beta_c <- beta
@@ -155,9 +159,9 @@ calculate_mse_fixed_nP_lepski_oracle_split <- function(
       oracle_bandwidth_target <- 0.8* n_t^(-1 / (2 * alpha_true + d))
       
       # Estimation
-      m_hat_c <- local_polynomial_estimator(x_combined, y_combined, x0_interior, degree, h_combined, kernel_type)
-      m_hat_c_oracle <- local_polynomial_estimator(x_combined, y_combined, x0_interior, degree, oracle_bandwidth_combined, kernel_type)
-      m_hat_t_oracle <- local_polynomial_estimator(x_t, y_t, x0_interior, degree, oracle_bandwidth_target, kernel_type)
+      m_hat_c <- local_polynomial_estimator(x_combined, y_combined, x0_interior, degree, h_combined, kernel_type, beta = best_beta_c)
+      m_hat_c_oracle <- local_polynomial_estimator(x_combined, y_combined, x0_interior, degree, oracle_bandwidth_combined, kernel_type, beta = alpha_true)
+      m_hat_t_oracle <- local_polynomial_estimator(x_t, y_t, x0_interior, degree, oracle_bandwidth_target, kernel_type, beta = alpha_true)
       
       # MSE
       truth <- f(matrix(x0_interior, ncol = d, byrow = TRUE), x0_interior, alpha_true)

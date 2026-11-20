@@ -144,8 +144,8 @@ for (n_s in source_sample_sizes) {
     x_combined <- rbind(x_s, x_t)
     y_combined <- c(y_s, y_t)
     
-    m_hat_combined <- local_polynomial_estimator(x_combined, y_combined, x0_manifold, degree, h_combined)
-    m_hat_target <- local_polynomial_estimator(x_t, y_t, x0_manifold, degree, h_target)
+    m_hat_combined <- local_polynomial_estimator(x_combined, y_combined, x0_manifold, degree, h_combined, beta = alpha)
+    m_hat_target <- local_polynomial_estimator(x_t, y_t, x0_manifold, degree, h_target, beta = alpha)
     f_true <- f(matrix(x0_manifold, ncol = D, byrow = TRUE), x0_manifold, alpha)
     
     all_results[[length(all_results) + 1]] <- data.frame(
