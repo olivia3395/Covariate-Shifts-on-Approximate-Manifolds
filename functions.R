@@ -12,6 +12,11 @@
 #   M_h    : sum_i W_ii
 #   lambda : 1 + M_h * h^{2 * beta}
 #
+# The default kernel is the box kernel 1(||u||_inf <= 1): it is compactly
+# supported and bounded below on the unit ball, as required by condition (2.3).
+# Note that, unlike the unpenalized estimator, (2.7) is not invariant to the
+# scale of K (it enters M_h and hence lambda_h).
+#
 # `beta` is the smoothness index that enters the ridge parameter lambda_h
 # (the true beta for the oracle estimator, the candidate beta for Lepski).
 # Setting penalized = FALSE gives back the unregularized LPR of Eq. (2.5).
@@ -36,7 +41,7 @@ poly_multi_indices <- function(D, degree) {
   idx
 }
 
-kernel_weights <- function(u, kernel_type = "gaussian") {
+kernel_weights <- function(u, kernel_type = "box") {
   D <- ncol(u)
   if (kernel_type == "gaussian") {
     exp(-0.5 * rowSums(u^2)) / ((2 * pi)^(D / 2))
@@ -50,7 +55,7 @@ kernel_weights <- function(u, kernel_type = "gaussian") {
 }
 
 local_polynomial_estimator <- function(x, y, x0_targetonly, degree, bandwidth,
-                                       kernel_type = "gaussian", beta = NULL,
+                                       kernel_type = "box", beta = NULL,
                                        penalized = TRUE) {
   if (!is.matrix(x)) x <- as.matrix(x)
   if (penalized && is.null(beta)) {
@@ -109,7 +114,7 @@ f <- function(x, x0, alpha) {
 # MSE Calculation under Fixed Source Size
 # -----------------------------------------------
 
-calculate_mse_fixed_nP <- function(target_sample_sizes, n_s, x0_targetonly , alpha, num_simulations, degree, kernel_type = "gaussian") {
+calculate_mse_fixed_nP <- function(target_sample_sizes, n_s, x0_targetonly , alpha, num_simulations, degree, kernel_type = "box", C_h = 1) {
   
   simulation_results <- list()
   
@@ -123,8 +128,8 @@ calculate_mse_fixed_nP <- function(target_sample_sizes, n_s, x0_targetonly , alp
     n_phi_target <- n_t * ifelse(all(x0_targetonly  >= 0 & x0_targetonly  <= 1), 1 / (1^d), 0)
     
    
-    bandwidth_combined <- (n_phi_combined)^(-1 / (2 * alpha + d))
-    bandwidth_target <- (n_phi_target)^(-1 / (2 * alpha + d))
+    bandwidth_combined <- C_h * (n_phi_combined)^(-1 / (2 * alpha + d))
+    bandwidth_target <- C_h * (n_phi_target)^(-1 / (2 * alpha + d))
     
    
     mse_c_simulations <- numeric(num_simulations)
@@ -201,15 +206,15 @@ phi <- function(z) {
 
 
 
-calculate_mse_fixed_nP_manifold <- function(target_sample_sizes, n_s, x0_manifold, alpha, num_simulations, degree, kernel_type = "gaussian") {
+calculate_mse_fixed_nP_manifold <- function(target_sample_sizes, n_s, x0_manifold, alpha, num_simulations, degree, kernel_type = "box", C_h = 1) {
   simulation_results <- list()
   
   for (i in seq_along(target_sample_sizes)) {
     n_t <- target_sample_sizes[i]
     
     # Bandwidth definitions
-    bandwidth_combined <- (n_t + n_s^((2 * alpha + d) / (2 * alpha + D)))^(-1 / (2 * alpha + d))
-    bandwidth_target <- n_t^(-1 / (2 * alpha + d))
+    bandwidth_combined <- C_h * (n_t + n_s^((2 * alpha + d) / (2 * alpha + D)))^(-1 / (2 * alpha + d))
+    bandwidth_target <- C_h * n_t^(-1 / (2 * alpha + d))
     
     mse_c_simulations <- numeric(num_simulations)
     mse_t_simulations <- numeric(num_simulations)

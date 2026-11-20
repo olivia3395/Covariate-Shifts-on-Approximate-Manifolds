@@ -75,7 +75,7 @@ for (n_s in source_sample_sizes) {
   if (rho_n >= h_n_star_combined) {
     bandwidth_combined <- 1.7 * (n_s + n_t * rho_n^(d - D))^(-1 / (2 * alpha + D))
   } else {
-    bandwidth_combined <- 1.7 * (n_s^((2 * alpha + d) / (2 * alpha + D)) + n_t)^(-1 / (2 * alpha + d))
+    bandwidth_combined <- 1.0 * (n_s^((2 * alpha + d) / (2 * alpha + D)) + n_t)^(-1 / (2 * alpha + d))
   }
   
   sim_data <- foreach(j = 1:num_simulations, .combine = rbind, .packages = "stats",

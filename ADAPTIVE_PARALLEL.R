@@ -86,7 +86,7 @@ cores = 10
 
 calculate_mse_fixed_nP_lepski_oracle_split <- function(
     target_sample_sizes, n_s, x0_interior, alpha_true, d,
-    num_simulations, degree, kernel_type = "gaussian"
+    num_simulations, degree, kernel_type = "box"
 ) {
   simulation_results <- list()
   beta_record_combined <- list()
@@ -155,8 +155,8 @@ calculate_mse_fixed_nP_lepski_oracle_split <- function(
       # -----------------------------
       # Oracle Bandwidth
       # -----------------------------
-      oracle_bandwidth_combined <- 1.2 * (n_t + n_s^((2 * alpha_true + d) / (2 * alpha_true + D)))^(-1 / (2 * alpha_true + d))
-      oracle_bandwidth_target <- 0.8* n_t^(-1 / (2 * alpha_true + d))
+      oracle_bandwidth_combined <- 1.0 * (n_t + n_s^((2 * alpha_true + d) / (2 * alpha_true + D)))^(-1 / (2 * alpha_true + d))
+      oracle_bandwidth_target <- 1.0 * n_t^(-1 / (2 * alpha_true + d))
       
       # Estimation
       m_hat_c <- local_polynomial_estimator(x_combined, y_combined, x0_interior, degree, h_combined, kernel_type, beta = best_beta_c)
@@ -301,7 +301,7 @@ for (n_t in target_sample_sizes) {
     d = estimated_d,
     num_simulations = num_simulations,
     degree = local_poly_degree,
-    kernel_type = "gaussian"
+    kernel_type = "box"
   )
   
   all_results[[as.character(n_t)]] <- res$results_df

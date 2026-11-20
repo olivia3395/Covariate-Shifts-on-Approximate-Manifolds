@@ -10,6 +10,8 @@ degree <- 2
 d <- 5
 alpha <- 2.5
 target_sample_size_fixed <- 1000
+kernel_type <- "box"   # compactly supported kernel, condition (2.3)
+C_h <- 0.5             # bandwidth constant (C_4 in Theorem 2.1)
 
 for (x0_label in c("targetonly", "interior")) {
   x0 <- if (x0_label == "targetonly") runif(d, 0.7, 0.8) else runif(d, 0.2, 0.3)
@@ -20,7 +22,7 @@ for (x0_label in c("targetonly", "interior")) {
     results <- calculate_mse_fixed_nP(
       target_sample_sizes, n_s, x0, alpha,
       num_simulations, degree,
-      kernel_type = "gaussian"
+      kernel_type = kernel_type, C_h = C_h
     )
     results$source_sample_size <- n_s
     all_results[[as.character(n_s)]] <- results
@@ -41,14 +43,14 @@ for (x0_label in c("targetonly", "interior")) {
         target_sample_size_fixed * ifelse(all(x0 >= 0 & x0 <= 1), 1, 0)
       n_phi_target <- target_sample_size_fixed * ifelse(all(x0 >= 0 & x0 <= 1), 1, 0)
       
-      h_combined <- n_phi_combined^(-1 / (2 * alpha + d))
-      h_target <- n_phi_target^(-1 / (2 * alpha + d))
+      h_combined <- C_h * n_phi_combined^(-1 / (2 * alpha + d))
+      h_target <- C_h * n_phi_target^(-1 / (2 * alpha + d))
       
       x_combined <- rbind(x_s, x_t)
       y_combined <- c(y_s, y_t)
       
-      m_hat_combined <- local_polynomial_estimator(x_combined, y_combined, x0, degree, h_combined, beta = alpha)
-      m_hat_target <- local_polynomial_estimator(x_t, y_t, x0, degree, h_target, beta = alpha)
+      m_hat_combined <- local_polynomial_estimator(x_combined, y_combined, x0, degree, h_combined, kernel_type, beta = alpha)
+      m_hat_target <- local_polynomial_estimator(x_t, y_t, x0, degree, h_target, kernel_type, beta = alpha)
       f_true <- f(matrix(x0, ncol = d, byrow = TRUE), x0, alpha)
       
       all_results[[length(all_results) + 1]] <- data.frame(
