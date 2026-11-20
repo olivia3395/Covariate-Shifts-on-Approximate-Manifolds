@@ -14,7 +14,7 @@ D <- 5
 d <- 2
 alpha <- 2.5
 degree <- 2
-num_simulations <- 100
+num_simulations <- 500
 
 source_sample_sizes <- c(1e4, 2e4, 3e4, 4e4, 5e4, 6e4, 7e4, 8e4, 9e4, 1e5, 2e5, 3e5, 4e5, 5e5, 6e5, 7e5,8e5, 9e5, 1e6)
 
