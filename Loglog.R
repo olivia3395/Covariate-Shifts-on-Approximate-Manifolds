@@ -181,18 +181,18 @@ mse_loglog_plot <- ggplot(results_loglog, aes(x = eff_sample_size, y = log_mse, 
             size = 1.3) +
   
   annotate("text",
-           x = max(results_loglog$eff_sample_size) - 1,
-           y = quantile(results_loglog$log_mse, 0.25) + 0.4,
+           x = min(results_loglog$eff_sample_size),
+           y = min(results_loglog$log_mse) + 0.16 * diff(range(results_loglog$log_mse)),
            label = sprintf("Proposed fit slope ≈ %.3f", slope_proposed),
            color = "#5f97d2",
-           hjust = 1,
+           hjust = 0,
            size = 6) +
   annotate("text",
-           x = max(results_loglog$eff_sample_size) - 1,
-           y = quantile(results_loglog$log_mse, 0.25) + 0.25,
+           x = min(results_loglog$eff_sample_size),
+           y = min(results_loglog$log_mse) + 0.04 * diff(range(results_loglog$log_mse)),
            label = sprintf("Theoretical slope ≈ %.3f", theory_slope),
            color = slope_color,
-           hjust = 1,
+           hjust = 0,
            size = 6) +
   
   scale_color_manual(values = c("Proposed" = "#5f97d2")) +
