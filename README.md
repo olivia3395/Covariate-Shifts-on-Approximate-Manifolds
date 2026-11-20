@@ -140,7 +140,7 @@ figures/adaptive_mse.pdf        ← MSE comparison: Adaptive vs. Oracle vs. Targ
 
 | File | Description |
 |---|---|
-| `functions.R` | Defines the local polynomial regression (LPR) estimator, data-generating processes, bandwidth selection, and MSE computation. Assumes known $\beta$ and $d$. |
+| `functions.R` | Defines the penalized local polynomial regression (LPR) estimator, data-generating processes, bandwidth selection, and MSE computation. Assumes known $\beta$ and $d$. |
 | `SAME_DIM.R` | Simulates the same-dimension baseline ($d = D$) with source and target both uniform on hypercubes in $\mathbb{R}^D$. Tests interior and exterior evaluation points. |
 | `MANIFOLD.R` | Simulates the manifold setting ($d < D$) with oracle knowledge of $d$ and $\beta$. Target generated via a nonlinear embedding $\phi: \mathbb{R}^d \to \mathbb{R}^D$. |
 | `ADAPTIVE_PARALLEL.R` | Fully adaptive procedure: estimates $d$ via $k$-NN distances and selects $\beta$ via Lepskii's method. Parallelized over replications for efficiency. |
@@ -188,9 +188,9 @@ source("ADAPTIVE_PARALLEL.R")
 ```
 
 **Log-log convergence plots:**
-```r
-source("Loglog.R")
-# Outputs: figures/loglog_*.pdf
+```bash
+Rscript Loglog.R 0.05   # rho_n; the paper uses 0, 0.01, 0.05 and 0.5
+# Outputs: loglog_rho_<rho_n>.png
 ```
 
 <br/>
@@ -214,9 +214,17 @@ source("Loglog.R")
 
 ## Methodology
 
-### Local Polynomial Regression Estimator
+### Penalized Local Polynomial Regression Estimator
 
-The estimator solves a weighted least-squares problem at the test point $x^*$:
+The estimator solves a ridge-penalized weighted least-squares problem at the test point $x^*$:
+
+$$\hat f(x^*) = e_1^\top \bigl(\mathbf{Z}^\top \mathbf{W}\mathbf{Z} + \lambda_{h_n} D_{h_n}\bigr)^{-1} \mathbf{Z}^\top \mathbf{W} Y,$$
+
+where the $i$-th row of $\mathbf{Z}$ is the scaled polynomial basis $z((X_i - x^*)/h_n)$, $\mathbf{W}_{ii} = K((X_i - x^*)/h_n)$, and
+
+$$D_{h_n} = \mathrm{diag}\bigl(h_n^{-2|\alpha|} : |\alpha| \le \ell\bigr), \qquad M_{h_n} = \sum_i \mathbf{W}_{ii}, \qquad \lambda_{h_n} = 1 + M_{h_n} h_n^{2\beta}.$$
+
+The ridge term keeps the estimator well defined when the local Gram matrix is singular or ill conditioned, which happens when the covariates concentrate near a lower-dimensional manifold. This is `local_polynomial_estimator()` in `functions.R`; it takes the smoothness index through its `beta` argument, and `penalized = FALSE` gives the unregularized estimator.
 
 
 ### Optimal Bandwidth

@@ -8,6 +8,7 @@ D <- 5     # Ambient space dimension
 d <- 2     # Intrinsic manifold dimension
 alpha <- 2.5
 degree <- 2
+kernel_type <- "box"   # compactly supported kernel, condition (2.3)
 
 # Smooth nonlinear mapping from manifold to ambient space
 phi <- function(z) {
@@ -51,7 +52,7 @@ all_results <- list()
 for (n_s in source_sample_sizes) {
   results <- calculate_mse_fixed_nP_manifold(
     target_sample_sizes, n_s, x0_manifold, alpha,
-    num_simulations, degree, kernel_type = "gaussian"
+    num_simulations, degree, kernel_type = kernel_type
   )
   results$source_sample_size <- n_s
   all_results[[as.character(n_s)]] <- results
@@ -144,8 +145,8 @@ for (n_s in source_sample_sizes) {
     x_combined <- rbind(x_s, x_t)
     y_combined <- c(y_s, y_t)
     
-    m_hat_combined <- local_polynomial_estimator(x_combined, y_combined, x0_manifold, degree, h_combined)
-    m_hat_target <- local_polynomial_estimator(x_t, y_t, x0_manifold, degree, h_target)
+    m_hat_combined <- local_polynomial_estimator(x_combined, y_combined, x0_manifold, degree, h_combined, kernel_type, beta = alpha)
+    m_hat_target <- local_polynomial_estimator(x_t, y_t, x0_manifold, degree, h_target, kernel_type, beta = alpha)
     f_true <- f(matrix(x0_manifold, ncol = D, byrow = TRUE), x0_manifold, alpha)
     
     all_results[[length(all_results) + 1]] <- data.frame(

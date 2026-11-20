@@ -16,7 +16,7 @@ library(parallel)
 
 
 rm(list = ls())
-setwd("/Users/yuyao/Desktop/JASA-CODE")
+# Run from the repository root (the directory containing functions.R)
 
 # Load estimator function
 source("functions.R") 
@@ -86,7 +86,7 @@ cores = 10
 
 calculate_mse_fixed_nP_lepski_oracle_split <- function(
     target_sample_sizes, n_s, x0_interior, alpha_true, d,
-    num_simulations, degree, kernel_type = "gaussian"
+    num_simulations, degree, kernel_type = "box"
 ) {
   simulation_results <- list()
   beta_record_combined <- list()
@@ -120,23 +120,27 @@ calculate_mse_fixed_nP_lepski_oracle_split <- function(
       # -----------------------------
       n_eff <- n_t + n_s
       beta_candidates <- seq(1, 5, by = 1 / log(n_eff))
-      C_combined <- 0.1
+      C_combined <- 0.05
       best_beta_c <- NULL
       
-      for (beta in beta_candidates) {
-        # h_beta <- (n_t + n_s^((2 * beta + d) / (2 * beta + D)))^(-1 / (2 * beta + d))
-        h_beta <-  1.2*((n_t + n_s^((2 * beta + d) / (2 * beta + D)))/log(n_eff))^(-1 / (2 * beta + d))
+      # Bandwidth and penalized LPR estimate for every candidate smoothness level.
+      # The ridge parameter lambda_h = 1 + M_h * h^(2 * beta) uses the candidate beta.
+      h_candidates <- 1.0 * ((n_t + n_s^((2 * beta_candidates + d) / (2 * beta_candidates + D))) / log(n_eff))^(-1 / (2 * beta_candidates + d))
+      f_candidates <- sapply(seq_along(beta_candidates), function(k) {
+        local_polynomial_estimator(x_combined, y_combined, x0_interior, degree,
+                                   h_candidates[k], kernel_type, beta = beta_candidates[k])
+      })
+      
+      for (b_idx in seq_along(beta_candidates)) {
+        beta <- beta_candidates[b_idx]
         stable <- TRUE
-        for (eta in beta_candidates) {
-          if (eta <= beta) {
-            ## h_eta <- (n_t + n_s^((2 * eta + d) / (2 * eta + D)))^(-1 / (2 * eta + d))
-            h_eta <- 1.2*((n_t + n_s^((2 * eta + d) / (2 * eta + D)))/log(n_eff))^(-1 / (2 * eta + d))
-            diff <- abs(local_polynomial_estimator(x_combined, y_combined, x0_interior, degree, h_beta, kernel_type) -
-                          local_polynomial_estimator(x_combined, y_combined, x0_interior, degree, h_eta, kernel_type))
-            if (diff > C_combined * h_eta^eta) {
-              stable <- FALSE
-              break
-            }
+        for (e_idx in seq_len(b_idx)) {
+          eta <- beta_candidates[e_idx]
+          h_eta <- h_candidates[e_idx]
+          diff <- abs(f_candidates[b_idx] - f_candidates[e_idx])
+          if (diff > C_combined * h_eta^eta) {
+            stable <- FALSE
+            break
           }
         }
         if (stable) best_beta_c <- beta
@@ -144,20 +148,20 @@ calculate_mse_fixed_nP_lepski_oracle_split <- function(
       
       if (is.null(best_beta_c)) best_beta_c <- min(beta_candidates)
       beta_values_combined[j] <- best_beta_c
-      h_combined <- 1.2*((n_t + n_s^((2 * best_beta_c + d) / (2 * best_beta_c + D)))/log(n_eff))^(-1 / (2 * best_beta_c + d))
+      h_combined <- 1.0*((n_t + n_s^((2 * best_beta_c + d) / (2 * best_beta_c + D)))/log(n_eff))^(-1 / (2 * best_beta_c + d))
       h_combined_record[j] <- h_combined
       
       
       # -----------------------------
       # Oracle Bandwidth
       # -----------------------------
-      oracle_bandwidth_combined <- 1.2 * (n_t + n_s^((2 * alpha_true + d) / (2 * alpha_true + D)))^(-1 / (2 * alpha_true + d))
-      oracle_bandwidth_target <- 0.8* n_t^(-1 / (2 * alpha_true + d))
+      oracle_bandwidth_combined <- 1.0 * (n_t + n_s^((2 * alpha_true + d) / (2 * alpha_true + D)))^(-1 / (2 * alpha_true + d))
+      oracle_bandwidth_target <- 1.0 * n_t^(-1 / (2 * alpha_true + d))
       
       # Estimation
-      m_hat_c <- local_polynomial_estimator(x_combined, y_combined, x0_interior, degree, h_combined, kernel_type)
-      m_hat_c_oracle <- local_polynomial_estimator(x_combined, y_combined, x0_interior, degree, oracle_bandwidth_combined, kernel_type)
-      m_hat_t_oracle <- local_polynomial_estimator(x_t, y_t, x0_interior, degree, oracle_bandwidth_target, kernel_type)
+      m_hat_c <- local_polynomial_estimator(x_combined, y_combined, x0_interior, degree, h_combined, kernel_type, beta = best_beta_c)
+      m_hat_c_oracle <- local_polynomial_estimator(x_combined, y_combined, x0_interior, degree, oracle_bandwidth_combined, kernel_type, beta = alpha_true)
+      m_hat_t_oracle <- local_polynomial_estimator(x_t, y_t, x0_interior, degree, oracle_bandwidth_target, kernel_type, beta = alpha_true)
       
       # MSE
       truth <- f(matrix(x0_interior, ncol = d, byrow = TRUE), x0_interior, alpha_true)
@@ -245,7 +249,7 @@ num_simulations <- 50
 local_poly_degree <- 2
 ambient_dim <- 5
 true_smoothness <- 2.5
-source_sample_size <- 5000
+source_sample_size <- 50000
 set.seed(123)
 
 phi <- function(z) {
@@ -297,7 +301,7 @@ for (n_t in target_sample_sizes) {
     d = estimated_d,
     num_simulations = num_simulations,
     degree = local_poly_degree,
-    kernel_type = "gaussian"
+    kernel_type = "box"
   )
   
   all_results[[as.character(n_t)]] <- res$results_df

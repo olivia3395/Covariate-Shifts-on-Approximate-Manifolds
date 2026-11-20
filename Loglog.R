@@ -35,7 +35,15 @@ phi <- function(z) {
 # Target point
 z0 <- runif(d, -1, 1)
 u_0<- runif(D, -1, 1)
-rho_n <- 0.5
+# Flip the 2nd and 4th coordinates of u_0 so that x* = phi(z0) + rho_n * u_0 stays
+# inside the source support [0,1]^D for every rho_n considered (Assumption 2
+# requires the source density to be positive around x*).
+u_0[c(2, 4)] <- -u_0[c(2, 4)]
+# Deviation from the manifold: pass it on the command line, e.g.
+#   Rscript Loglog.R 0.05
+# (the paper uses rho_n in {0, 0.01, 0.05, 0.5}); defaults to 0.5.
+args <- commandArgs(trailingOnly = TRUE)
+rho_n <- if (length(args) >= 1) as.numeric(args[1]) else 0.5
 x0_manifold <- phi(matrix(z0, nrow = 1)) + matrix(rho_n * u_0, nrow = 1)
 
 
@@ -45,80 +53,14 @@ f <- function(x, x0, alpha) {
 }
 
 
-local_polynomial_estimator <- function(x, y, x0_targetonly, degree, bandwidth, kernel_type = "box") {
-  if (!is.matrix(x)) x <- as.matrix(x)
-  d <- ncol(x)
-  n <- nrow(x)
-  
-  
-  kernel_function <- function(u, kernel_type) {
-    if (kernel_type == "gaussian") {
-      return(exp(-0.5 * rowSums(u^2)) / ((2 * pi)^(d / 2)))
-    } else if (kernel_type == "epanechnikov") {
-      return(pmax(0, 1 - rowSums(u^2)))
-    } else if (kernel_type == "box") {
-      return(ifelse(rowSums(abs(u) > 1) == 0, 1, 0)) 
-    } else {
-      stop("Unsupported kernel type")
-    }
-  }
-  
-
-  u <- sweep(x, 2, x0_targetonly, "-") / bandwidth
-  
-  weights <- kernel_function(u, kernel_type)
-  
-
-  terms_list <- lapply(1:d, function(i) 0:degree)
-  all_combinations <- expand.grid(terms_list)
-  valid_combinations <- all_combinations[rowSums(all_combinations) <= degree, , drop = FALSE]
-  
-  data_frame <- data.frame(y = y)
-  term_names <- character(nrow(valid_combinations))
-  
-  for (i in 1:nrow(valid_combinations)) {
-    k <- valid_combinations[i, ]
-    term <- rep(1, n)
-    term_name_parts <- character(0)
-    
-    for (j in 1:d) {
-      kj <- k[[j]]
-      term <- term * (x[, j] - x0_targetonly[j])^kj
-      if (kj > 0) {
-        term_name_parts <- c(term_name_parts, paste0("X", j, "_deg", kj))
-      }
-    }
-    
-    term_name <- if (length(term_name_parts) == 0) "Intercept" else paste(term_name_parts, collapse = "_")
-    term_names[i] <- make.names(term_name, unique = TRUE)
-    data_frame[[term_names[i]]] <- term
-  }
-  
-  formula_str <- if ("Intercept" %in% term_names) {
-    paste("y ~", paste(term_names, collapse = " + "), "-1")
-  } else {
-    paste("y ~", paste(term_names, collapse = " + "))
-  }
-  
-  if (all(weights == 0)) {
-    warning("No points within kernel support for estimation.")
-    return(NA_real_)
-  }
-  
-  lm_fit <- lm(as.formula(formula_str), data = data_frame, weights = weights)
-  
-  new_data <- as.data.frame(matrix(0, nrow = 1, ncol = length(term_names)))
-  colnames(new_data) <- term_names
-  if ("Intercept" %in% term_names) new_data$Intercept <- 1
-  
-  return(predict(lm_fit, newdata = new_data)[1])
-}
+# Penalized local polynomial estimator of Eq. (2.7)
+source("functions.R")
 
 
 # =============================================
 ## parallel
 # =============================================
-n_cores <- 18 
+n_cores <- min(18, parallel::detectCores())
 cl <- makeCluster(n_cores)
 registerDoParallel(cl)
 
@@ -135,12 +77,13 @@ for (n_s in source_sample_sizes) {
   cat(sprintf("[INFO] h_n_star (combined estimator): %.5f\n", h_n_star_combined))
   
   if (rho_n >= h_n_star_combined) {
-    bandwidth_combined <- 1.7 * (n_s + n_t * rho_n^(d - D))^(-1 / (2 * alpha + D))
+    bandwidth_combined <- 0.8 * (n_s + n_t * rho_n^(d - D))^(-1 / (2 * alpha + D))
   } else {
-    bandwidth_combined <- 1.7 * (n_s^((2 * alpha + d) / (2 * alpha + D)) + n_t)^(-1 / (2 * alpha + d))
+    bandwidth_combined <- 1.0 * (n_s^((2 * alpha + d) / (2 * alpha + D)) + n_t)^(-1 / (2 * alpha + d))
   }
   
-  sim_data <- foreach(j = 1:num_simulations, .combine = rbind, .packages = "stats") %dopar% {
+  sim_data <- foreach(j = 1:num_simulations, .combine = rbind, .packages = "stats",
+                      .export = c("local_polynomial_estimator", "kernel_weights", "poly_multi_indices")) %dopar% {
     # Source covariates
     x_s <- matrix(runif(n_s * D, 0, 1), ncol = D)
     y_s <- f(x_s, x0_manifold, alpha) + rnorm(n_s)
@@ -154,7 +97,8 @@ for (n_s in source_sample_sizes) {
     x_combined <- rbind(x_s, x_t)
     y_combined <- c(y_s, y_t)
     
-    m_hat_c <- local_polynomial_estimator(x_combined, y_combined, x0_manifold, degree, bandwidth_combined)
+    m_hat_c <- local_polynomial_estimator(x_combined, y_combined, x0_manifold, degree, bandwidth_combined,
+                                          kernel_type = "box", beta = alpha)
     
     true_val <- f(matrix(x0_manifold, ncol = D, byrow = TRUE), x0_manifold, alpha)
     
@@ -196,16 +140,21 @@ results_loglog <- bind_rows(simulation_results) %>%
 
 
 
-saveRDS(results_loglog, "results_loglog_varyrho_proposedonly.rds")
+results_file <- sprintf("results_loglog_rho_%s.rds", format(rho_n))
+saveRDS(results_loglog, results_file)
 
 
-results_loglog <- readRDS("results_loglog_varyrho_proposedonly.rds")
+results_loglog <- readRDS(results_file)
 
 
 
-theory_slope <- -2 * alpha / (2 * alpha + D)
+# Theoretical slope (Theorem 2.1): -2*beta/(2*beta+D) when rho_n is above the
+# threshold, -2*beta/(2*beta+d) when it is below.
+large_rho <- all(results_loglog$rho_n >= results_loglog$h_n_star_combined)
+theory_slope <- if (large_rho) -2 * alpha / (2 * alpha + D) else -2 * alpha / (2 * alpha + d)
 
-theory_intercept <- 0.08
+# Reference line through the centre of the point cloud
+theory_intercept <- mean(results_loglog$log_mse) - theory_slope * mean(results_loglog$eff_sample_size)
 
 slope_label <- sprintf("Theoretical slope (d = %d): %.3f", d, theory_slope)
 slope_color <- "#e55b00" 
@@ -232,18 +181,18 @@ mse_loglog_plot <- ggplot(results_loglog, aes(x = eff_sample_size, y = log_mse, 
             size = 1.3) +
   
   annotate("text",
-           x = max(results_loglog$eff_sample_size) - 1,
-           y = quantile(results_loglog$log_mse, 0.25) + 0.4,
+           x = min(results_loglog$eff_sample_size),
+           y = min(results_loglog$log_mse) + 0.16 * diff(range(results_loglog$log_mse)),
            label = sprintf("Proposed fit slope ≈ %.3f", slope_proposed),
            color = "#5f97d2",
-           hjust = 1,
+           hjust = 0,
            size = 6) +
   annotate("text",
-           x = max(results_loglog$eff_sample_size) - 1,
-           y = quantile(results_loglog$log_mse, 0.25) + 0.25,
+           x = min(results_loglog$eff_sample_size),
+           y = min(results_loglog$log_mse) + 0.04 * diff(range(results_loglog$log_mse)),
            label = sprintf("Theoretical slope ≈ %.3f", theory_slope),
            color = slope_color,
-           hjust = 1,
+           hjust = 0,
            size = 6) +
   
   scale_color_manual(values = c("Proposed" = "#5f97d2")) +
@@ -253,13 +202,13 @@ mse_loglog_plot <- ggplot(results_loglog, aes(x = eff_sample_size, y = log_mse, 
   ) +
   
   labs(
-    title = bquote("Log-Log MSE vs Effective Sample Size  (" ~ rho[n] == 0.05 ~ ")"),
+    title = bquote("Log-Log MSE vs Effective Sample Size  (" ~ rho[n] == .(rho_n) ~ ")"),
     x = expression(log[10]("Effective Sample Size")),
     y = expression(log[10](MSE)),
     color = "Estimator"
   ) +
   ## coord_cartesian(ylim = c(-4.3, -2), clip = "off") +
-  coord_cartesian(ylim = c(-3, -1.2), clip = "off") + 
+  coord_cartesian(clip = "off") + 
   theme_minimal(base_size = 16) +
   theme(
     plot.title = element_text(face = "bold", hjust = 0.5, size = 18),
@@ -270,7 +219,7 @@ mse_loglog_plot <- ggplot(results_loglog, aes(x = eff_sample_size, y = log_mse, 
     legend.position = "top"
   )
 
-ggsave("loglog_mse_plot_varyrho_adaptive_slope.png", plot = mse_loglog_plot,
+ggsave(sprintf("loglog_rho_%s.png", format(rho_n)), plot = mse_loglog_plot,
        width = 8, height = 6, dpi = 300, bg = "white")
 
 

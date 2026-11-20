@@ -1,64 +1,106 @@
 # functions.R
   
 # -----------------------------------------------
-# Local Polynomial Estimator
+# Penalized Local Polynomial Estimator  (Section 2.2, Eq. (2.7))
 # -----------------------------------------------
-local_polynomial_estimator <- function(x, y, x0_targetonly, degree, bandwidth, kernel_type = "gaussian") {
-  if (!is.matrix(x)) x <- as.matrix(x)
-  d <- ncol(x)
-  n <- nrow(x)
-  
-  kernel_function <- function(u, kernel_type) {
-    if (kernel_type == "gaussian") {
-      return(exp(-0.5 * rowSums(u^2)) / ((2 * pi)^(d / 2)))
-    } else if (kernel_type == "epanechnikov") {
-      return(pmax(0, 1 - rowSums(u^2)))
-    } else {
-      stop("Unsupported kernel type")
+#   f_hat(x0) = e_1' (Z'WZ + lambda_h D_h)^{-1} Z'WY
+#
+#   Z      : i-th row is z((X_i - x0)/h), the scaled monomials
+#            prod_j u_j^{a_j} / a_j!  with |a| <= degree
+#   W      : diag(K((X_i - x0)/h))
+#   D_h    : diag(h^{-2|a|} : |a| <= degree)
+#   M_h    : sum_i W_ii
+#   lambda : 1 + M_h * h^{2 * beta}
+#
+# The default kernel is the box kernel 1(||u||_inf <= 1): it is compactly
+# supported and bounded below on the unit ball, as required by condition (2.3).
+# Note that, unlike the unpenalized estimator, (2.7) is not invariant to the
+# scale of K (it enters M_h and hence lambda_h).
+#
+# `beta` is the smoothness index that enters the ridge parameter lambda_h
+# (the true beta for the oracle estimator, the candidate beta for Lepski).
+# Setting penalized = FALSE gives back the unregularized LPR of Eq. (2.5).
+# The estimator is always well defined when penalized = TRUE (it returns 0
+# if no observation falls in the kernel window).
+# -----------------------------------------------
+
+# All multi-indices a in N^D with |a| <= degree (first row is a = 0)
+poly_multi_indices <- function(D, degree) {
+  idx <- matrix(0L, nrow = 1, ncol = D)
+  if (degree >= 1) {
+    for (total in 1:degree) {
+      prev <- idx[rowSums(idx) == total - 1, , drop = FALSE]
+      cand <- do.call(rbind, lapply(1:D, function(j) {
+        out <- prev
+        out[, j] <- out[, j] + 1L
+        out
+      }))
+      idx <- rbind(idx, unique(cand))
     }
   }
-  
-  u <- sweep(x, 2, x0_targetonly, "-") / bandwidth
-  weights <- kernel_function(u, kernel_type)
-  
-  terms_list <- lapply(1:d, function(i) 0:degree)
-  all_combinations <- expand.grid(terms_list)
-  valid_combinations <- all_combinations[rowSums(all_combinations) <= degree, , drop = FALSE]
-  
-  data_frame <- data.frame(y = y)
-  term_names <- character(nrow(valid_combinations))
-  
-  for (i in 1:nrow(valid_combinations)) {
-    k <- valid_combinations[i, ]
-    term <- rep(1, n)
-    term_name_parts <- character(0)
-    
-    for (j in 1:d) {
-      kj <- k[[j]]
-      term <- term * (x[, j] - x0_targetonly[j])^kj
-      if (kj > 0) {
-        term_name_parts <- c(term_name_parts, paste0("X", j, "_deg", kj))
-      }
-    }
-    
-    term_name <- if (length(term_name_parts) == 0) "Intercept" else paste(term_name_parts, collapse = "_")
-    term_names[i] <- make.names(term_name, unique = TRUE)
-    data_frame[[term_names[i]]] <- term
-  }
-  
-  formula_str <- if ("Intercept" %in% term_names) {
-    paste("y ~", paste(term_names, collapse = " + "), "- 1")
+  idx
+}
+
+kernel_weights <- function(u, kernel_type = "box") {
+  D <- ncol(u)
+  if (kernel_type == "gaussian") {
+    exp(-0.5 * rowSums(u^2)) / ((2 * pi)^(D / 2))
+  } else if (kernel_type == "epanechnikov") {
+    pmax(0, 1 - rowSums(u^2))
+  } else if (kernel_type == "box") {
+    as.numeric(rowSums(abs(u) > 1) == 0)
   } else {
-    paste("y ~", paste(term_names, collapse = " + "))
+    stop("Unsupported kernel type")
   }
-  
-  lm_fit <- lm(as.formula(formula_str), data = data_frame, weights = weights)
-  
-  new_data <- as.data.frame(matrix(0, nrow = 1, ncol = length(term_names)))
-  colnames(new_data) <- term_names
-  if ("Intercept" %in% term_names) new_data$Intercept <- 1
-  
-  return(predict(lm_fit, newdata = new_data)[1])
+}
+
+local_polynomial_estimator <- function(x, y, x0_targetonly, degree, bandwidth,
+                                       kernel_type = "box", beta = NULL,
+                                       penalized = TRUE) {
+  if (!is.matrix(x)) x <- as.matrix(x)
+  if (penalized && is.null(beta)) {
+    stop("`beta` is required for the penalized estimator: lambda_h = 1 + M_h * h^(2 * beta)")
+  }
+  D <- ncol(x)
+  x0 <- as.numeric(x0_targetonly)
+
+  u <- sweep(x, 2, x0, "-") / bandwidth
+  w <- kernel_weights(u, kernel_type)
+
+  # Only observations with positive weight contribute to Z'WZ and Z'WY
+  keep <- which(w > 0)
+  if (length(keep) == 0) {
+    if (penalized) return(0)
+    warning("No points within kernel support for estimation.")
+    return(NA_real_)
+  }
+  u <- u[keep, , drop = FALSE]
+  w <- w[keep]
+  yk <- y[keep]
+
+  # Design matrix Z with rows z(u_i)
+  idx <- poly_multi_indices(D, degree)
+  Z <- matrix(1, nrow = length(keep), ncol = nrow(idx))
+  for (k in seq_len(nrow(idx))) {
+    for (j in which(idx[k, ] > 0)) {
+      a <- idx[k, j]
+      Z[, k] <- Z[, k] * u[, j]^a / factorial(a)
+    }
+  }
+
+  ZtWZ <- crossprod(Z, Z * w)
+  ZtWY <- crossprod(Z, w * yk)
+
+  if (penalized) {
+    M_h <- sum(w)
+    lambda_h <- 1 + M_h * bandwidth^(2 * beta)
+    D_h <- bandwidth^(-2 * rowSums(idx))
+    A <- ZtWZ + diag(lambda_h * D_h, nrow = nrow(idx))
+    theta <- solve(A, ZtWY)
+  } else {
+    theta <- tryCatch(solve(ZtWZ, ZtWY), error = function(e) rep(NA_real_, nrow(idx)))
+  }
+  as.numeric(theta[1])
 }
 
 # -----------------------------------------------
@@ -72,7 +114,7 @@ f <- function(x, x0, alpha) {
 # MSE Calculation under Fixed Source Size
 # -----------------------------------------------
 
-calculate_mse_fixed_nP <- function(target_sample_sizes, n_s, x0_targetonly , alpha, num_simulations, degree, kernel_type = "gaussian") {
+calculate_mse_fixed_nP <- function(target_sample_sizes, n_s, x0_targetonly , alpha, num_simulations, degree, kernel_type = "box", C_h = 1) {
   
   simulation_results <- list()
   
@@ -86,8 +128,8 @@ calculate_mse_fixed_nP <- function(target_sample_sizes, n_s, x0_targetonly , alp
     n_phi_target <- n_t * ifelse(all(x0_targetonly  >= 0 & x0_targetonly  <= 1), 1 / (1^d), 0)
     
    
-    bandwidth_combined <- (n_phi_combined)^(-1 / (2 * alpha + d))
-    bandwidth_target <- (n_phi_target)^(-1 / (2 * alpha + d))
+    bandwidth_combined <- C_h * (n_phi_combined)^(-1 / (2 * alpha + d))
+    bandwidth_target <- C_h * (n_phi_target)^(-1 / (2 * alpha + d))
     
    
     mse_c_simulations <- numeric(num_simulations)
@@ -106,8 +148,8 @@ calculate_mse_fixed_nP <- function(target_sample_sizes, n_s, x0_targetonly , alp
       y_combined <- c(y_s, y_t)
       
      
-      m_hat_combined <- local_polynomial_estimator(x_combined, y_combined, x0_targetonly , degree, bandwidth_combined, kernel_type)
-      m_hat_target <- local_polynomial_estimator(x_t, y_t, x0_targetonly , degree, bandwidth_target, kernel_type)
+      m_hat_combined <- local_polynomial_estimator(x_combined, y_combined, x0_targetonly , degree, bandwidth_combined, kernel_type, beta = alpha)
+      m_hat_target <- local_polynomial_estimator(x_t, y_t, x0_targetonly , degree, bandwidth_target, kernel_type, beta = alpha)
       
      
       mse_c_simulations[j] <- (m_hat_combined - f(matrix(x0_targetonly , ncol = d, byrow = TRUE), x0_targetonly , alpha))^2
@@ -164,15 +206,15 @@ phi <- function(z) {
 
 
 
-calculate_mse_fixed_nP_manifold <- function(target_sample_sizes, n_s, x0_manifold, alpha, num_simulations, degree, kernel_type = "gaussian") {
+calculate_mse_fixed_nP_manifold <- function(target_sample_sizes, n_s, x0_manifold, alpha, num_simulations, degree, kernel_type = "box", C_h = 1) {
   simulation_results <- list()
   
   for (i in seq_along(target_sample_sizes)) {
     n_t <- target_sample_sizes[i]
     
     # Bandwidth definitions
-    bandwidth_combined <- (n_t + n_s^((2 * alpha + d) / (2 * alpha + D)))^(-1 / (2 * alpha + d))
-    bandwidth_target <- n_t^(-1 / (2 * alpha + d))
+    bandwidth_combined <- C_h * (n_t + n_s^((2 * alpha + d) / (2 * alpha + D)))^(-1 / (2 * alpha + d))
+    bandwidth_target <- C_h * n_t^(-1 / (2 * alpha + d))
     
     mse_c_simulations <- numeric(num_simulations)
     mse_t_simulations <- numeric(num_simulations)
@@ -199,8 +241,8 @@ calculate_mse_fixed_nP_manifold <- function(target_sample_sizes, n_s, x0_manifol
       y_combined <- c(y_s, y_t)
       
       # Estimation
-      m_hat_combined <- local_polynomial_estimator(x_combined, y_combined, x0_manifold, degree, bandwidth_combined, kernel_type)
-      m_hat_target <- local_polynomial_estimator(x_t, y_t, x0_manifold, degree, bandwidth_target, kernel_type)
+      m_hat_combined <- local_polynomial_estimator(x_combined, y_combined, x0_manifold, degree, bandwidth_combined, kernel_type, beta = alpha)
+      m_hat_target <- local_polynomial_estimator(x_t, y_t, x0_manifold, degree, bandwidth_target, kernel_type, beta = alpha)
       true_val <- f(matrix(x0_manifold, ncol = D, byrow = TRUE), x0_manifold, alpha)
       
       mse_c_simulations[j] <- (m_hat_combined - true_val)^2
