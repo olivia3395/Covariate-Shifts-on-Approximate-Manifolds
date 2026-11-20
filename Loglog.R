@@ -35,6 +35,10 @@ phi <- function(z) {
 # Target point
 z0 <- runif(d, -1, 1)
 u_0<- runif(D, -1, 1)
+# Flip the 2nd and 4th coordinates of u_0 so that x* = phi(z0) + rho_n * u_0 stays
+# inside the source support [0,1]^D for every rho_n considered (Assumption 2
+# requires the source density to be positive around x*).
+u_0[c(2, 4)] <- -u_0[c(2, 4)]
 # Deviation from the manifold: pass it on the command line, e.g.
 #   Rscript Loglog.R 0.05
 # (the paper uses rho_n in {0, 0.01, 0.05, 0.5}); defaults to 0.5.
@@ -73,7 +77,7 @@ for (n_s in source_sample_sizes) {
   cat(sprintf("[INFO] h_n_star (combined estimator): %.5f\n", h_n_star_combined))
   
   if (rho_n >= h_n_star_combined) {
-    bandwidth_combined <- 1.7 * (n_s + n_t * rho_n^(d - D))^(-1 / (2 * alpha + D))
+    bandwidth_combined <- 0.8 * (n_s + n_t * rho_n^(d - D))^(-1 / (2 * alpha + D))
   } else {
     bandwidth_combined <- 1.0 * (n_s^((2 * alpha + d) / (2 * alpha + D)) + n_t)^(-1 / (2 * alpha + d))
   }

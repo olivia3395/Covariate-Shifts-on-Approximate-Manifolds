@@ -120,12 +120,12 @@ calculate_mse_fixed_nP_lepski_oracle_split <- function(
       # -----------------------------
       n_eff <- n_t + n_s
       beta_candidates <- seq(1, 5, by = 1 / log(n_eff))
-      C_combined <- 0.1
+      C_combined <- 0.05
       best_beta_c <- NULL
       
       # Bandwidth and penalized LPR estimate for every candidate smoothness level.
       # The ridge parameter lambda_h = 1 + M_h * h^(2 * beta) uses the candidate beta.
-      h_candidates <- 1.2 * ((n_t + n_s^((2 * beta_candidates + d) / (2 * beta_candidates + D))) / log(n_eff))^(-1 / (2 * beta_candidates + d))
+      h_candidates <- 1.0 * ((n_t + n_s^((2 * beta_candidates + d) / (2 * beta_candidates + D))) / log(n_eff))^(-1 / (2 * beta_candidates + d))
       f_candidates <- sapply(seq_along(beta_candidates), function(k) {
         local_polynomial_estimator(x_combined, y_combined, x0_interior, degree,
                                    h_candidates[k], kernel_type, beta = beta_candidates[k])
@@ -148,7 +148,7 @@ calculate_mse_fixed_nP_lepski_oracle_split <- function(
       
       if (is.null(best_beta_c)) best_beta_c <- min(beta_candidates)
       beta_values_combined[j] <- best_beta_c
-      h_combined <- 1.2*((n_t + n_s^((2 * best_beta_c + d) / (2 * best_beta_c + D)))/log(n_eff))^(-1 / (2 * best_beta_c + d))
+      h_combined <- 1.0*((n_t + n_s^((2 * best_beta_c + d) / (2 * best_beta_c + D)))/log(n_eff))^(-1 / (2 * best_beta_c + d))
       h_combined_record[j] <- h_combined
       
       
@@ -249,7 +249,7 @@ num_simulations <- 50
 local_poly_degree <- 2
 ambient_dim <- 5
 true_smoothness <- 2.5
-source_sample_size <- 5000
+source_sample_size <- 50000
 set.seed(123)
 
 phi <- function(z) {
